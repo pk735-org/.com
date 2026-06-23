@@ -10,7 +10,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   balance NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
   vip_level INTEGER DEFAULT 1 NOT NULL,
   is_admin BOOLEAN DEFAULT false NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+  referred_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  referral_earnings NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
+  welcome_bonus_claimed BOOLEAN DEFAULT false NOT NULL,
+  last_check_in TIMESTAMP WITH TIME ZONE
 );
 
 -- Enable Row Level Security (RLS)
@@ -121,6 +125,8 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
   phone_val TEXT;
+  referrer_phone_val TEXT;
+  referrer_id_val UUID;
 BEGIN
   -- If phone is empty (using email login formatted as phone@pk735.org), extract phone
   IF NEW.phone IS NOT NULL AND NEW.phone <> '' THEN
@@ -129,14 +135,34 @@ BEGIN
     phone_val := SPLIT_PART(NEW.email, '@', 1);
   END IF;
 
-  INSERT INTO public.profiles (id, phone, balance, vip_level, is_admin)
+  -- Extract referrer phone from signup metadata
+  referrer_phone_val := NEW.raw_user_meta_data->>'referred_by';
+  
+  -- Resolve referrer UUID
+  IF referrer_phone_val IS NOT NULL AND referrer_phone_val <> '' THEN
+    SELECT id INTO referrer_id_val FROM public.profiles WHERE phone = referrer_phone_val;
+  END IF;
+
+  INSERT INTO public.profiles (
+    id, 
+    phone, 
+    balance, 
+    vip_level, 
+    is_admin, 
+    referred_by, 
+    referral_earnings, 
+    welcome_bonus_claimed
+  )
   VALUES (
     NEW.id,
     phone_val,
     0.00,
     1,
     -- Make first user admin by default for convenience, or false
-    CASE WHEN (SELECT COUNT(*) FROM public.profiles) = 0 THEN true ELSE false END
+    CASE WHEN (SELECT COUNT(*) FROM public.profiles) = 0 THEN true ELSE false END,
+    referrer_id_val,
+    0.00,
+    false
   );
   RETURN NEW;
 END;

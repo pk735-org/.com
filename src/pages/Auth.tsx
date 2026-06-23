@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { KeyRound, Phone, AlertCircle, Loader } from 'lucide-react';
 
@@ -13,6 +13,14 @@ export const Auth: React.FC<AuthProps> = ({ onNavigate, onAuthSuccess }) => {
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      localStorage.setItem('referred_by', ref);
+    }
+  }, []);
 
   const validatePhone = (num: string) => {
     // Regex for typical Pakistan phone numbers (e.g. 03XXXXXXXXX or 3XXXXXXXXX)
@@ -59,12 +67,14 @@ export const Auth: React.FC<AuthProps> = ({ onNavigate, onAuthSuccess }) => {
         }
       } else {
         // Sign Up (Register)
+        const referrerPhone = localStorage.getItem('referred_by');
         const { error } = await supabase.auth.signUp({
           email: mockEmail,
           password: password,
           options: {
             data: {
-              phone: trimmedPhone
+              phone: trimmedPhone,
+              referred_by: referrerPhone || null
             }
           }
         });
@@ -85,6 +95,7 @@ export const Auth: React.FC<AuthProps> = ({ onNavigate, onAuthSuccess }) => {
               'Account created! Please make sure "Confirm email" is DISABLED in your Supabase Auth settings so you can log in immediately.'
             );
           } else {
+            localStorage.removeItem('referred_by');
             onAuthSuccess();
             onNavigate('home');
           }

@@ -5,6 +5,10 @@ export interface Profile {
   vip_level: number;
   is_admin: boolean;
   created_at: string;
+  referred_by?: string | null;
+  referral_earnings: number;
+  welcome_bonus_claimed: boolean;
+  last_check_in?: string | null;
 }
 
 export interface Deposit {

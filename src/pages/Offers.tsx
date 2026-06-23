@@ -27,6 +27,23 @@ export const Offers: React.FC<OffersProps> = ({ userProfile, onNavigate: _onNavi
   const [checkedIn, setCheckedIn] = useState(false);
   const [checkInReward, setCheckInReward] = useState<number | null>(null);
 
+  const isToday = (dateStr: string | null | undefined) => {
+    if (!dateStr) return false;
+    const date = new Date(dateStr);
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear();
+  };
+
+  React.useEffect(() => {
+    if (userProfile && userProfile.last_check_in) {
+      if (isToday(userProfile.last_check_in)) {
+        setCheckedIn(true);
+      }
+    }
+  }, [userProfile]);
+
   const segments: SpinSegment[] = [
     { label: 'Rs 10', value: 10, color: '#023E37' },
     { label: 'Rs 50', value: 50, color: '#04534A' },
@@ -124,7 +141,10 @@ export const Offers: React.FC<OffersProps> = ({ userProfile, onNavigate: _onNavi
       const newBalance = userProfile.balance + reward;
       const { error } = await supabase
         .from('profiles')
-        .update({ balance: newBalance })
+        .update({ 
+          balance: newBalance,
+          last_check_in: new Date().toISOString()
+        })
         .eq('id', userProfile.id);
 
       if (error) {

@@ -86,25 +86,69 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
       if (depError) throw depError;
 
-      // Step 2: Fetch current user balance
+      // Step 2: Fetch current user profile details
       const { data: userProf, error: getError } = await supabase
         .from('profiles')
-        .select('balance')
+        .select('balance, welcome_bonus_claimed, referred_by')
         .eq('id', dep.user_id)
         .single();
 
       if (getError || !userProf) throw getError || new Error('User profile not found');
 
-      // Step 3: Increment balance
-      const newBal = Number(userProf.balance) + Number(dep.amount);
+      // Step 3: Check if Welcome Bonus applies (deposit >= 300 and welcome_bonus_claimed is false)
+      const shouldGiveWelcomeBonus = Number(dep.amount) >= 300 && !userProf.welcome_bonus_claimed;
+      const welcomeBonusAmount = 735.00;
+      
+      let newBal = Number(userProf.balance) + Number(dep.amount);
+      if (shouldGiveWelcomeBonus) {
+        newBal += welcomeBonusAmount;
+      }
+
+      // Step 4: Update user profile balance and welcome_bonus_claimed flag
       const { error: balError } = await supabase
         .from('profiles')
-        .update({ balance: newBal })
+        .update({ 
+          balance: newBal,
+          welcome_bonus_claimed: userProf.welcome_bonus_claimed || shouldGiveWelcomeBonus
+        })
         .eq('id', dep.user_id);
 
       if (balError) throw balError;
 
-      setStatusMsg(`Successfully approved Rs ${dep.amount} deposit for user ${dep.phone}`);
+      // Step 5: Check if user was referred by someone and apply 5% commission
+      let commissionMsg = '';
+      if (userProf.referred_by) {
+        const commissionAmount = parseFloat((Number(dep.amount) * 0.05).toFixed(2));
+        
+        // Fetch referrer profile
+        const { data: referrerProf, error: getRefError } = await supabase
+          .from('profiles')
+          .select('balance, referral_earnings')
+          .eq('id', userProf.referred_by)
+          .single();
+
+        if (!getRefError && referrerProf) {
+          const newRefBal = Number(referrerProf.balance) + commissionAmount;
+          const newRefEarnings = Number(referrerProf.referral_earnings) + commissionAmount;
+
+          // Update referrer profile
+          await supabase
+            .from('profiles')
+            .update({ 
+              balance: newRefBal,
+              referral_earnings: newRefEarnings
+            })
+            .eq('id', userProf.referred_by);
+
+          commissionMsg = ` (and Rs ${commissionAmount} commission credited to referrer)`;
+        }
+      }
+
+      setStatusMsg(
+        `Successfully approved Rs ${dep.amount} deposit for user ${dep.phone}${
+          shouldGiveWelcomeBonus ? ` (Rs 735 Welcome Bonus credited!)` : ''
+        }${commissionMsg}`
+      );
       fetchAdminData();
     } catch (err: any) {
       setStatusMsg('Error: ' + err.message);

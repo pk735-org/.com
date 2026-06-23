@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Copy, Gift, DollarSign, Award, Users } from 'lucide-react';
 import { Profile } from '../types';
+import { supabase } from '../supabaseClient';
 
 interface InviteProps {
   userProfile: Profile | null;
@@ -8,6 +9,25 @@ interface InviteProps {
 
 export const Invite: React.FC<InviteProps> = ({ userProfile }) => {
   const [copied, setCopied] = useState(false);
+  const [referredCount, setReferredCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!userProfile) return;
+    const fetchReferredCount = async () => {
+      try {
+        const { count, error } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('referred_by', userProfile.id);
+        if (!error && count !== null) {
+          setReferredCount(count);
+        }
+      } catch (err) {
+        console.error('Error fetching referred count:', err);
+      }
+    };
+    fetchReferredCount();
+  }, [userProfile]);
 
   // Fallback default code if not logged in
   const refCode = userProfile ? userProfile.phone : 'guest735';
@@ -64,13 +84,17 @@ export const Invite: React.FC<InviteProps> = ({ userProfile }) => {
           <div className="bg-[#03443C] p-4 rounded-xl border border-[#023E37] flex flex-col items-center text-center shadow-md">
             <Users className="w-5 h-5 text-[#3BA285] mb-1" />
             <span className="text-[9px] text-[#B8CEC9] uppercase font-bold">Total Referred</span>
-            <span className="text-[16px] text-white font-black mt-1 font-mono">0 Players</span>
+            <span className="text-[16px] text-white font-black mt-1 font-mono">
+              {referredCount !== null ? `${referredCount} ${referredCount === 1 ? 'Player' : 'Players'}` : '0 Players'}
+            </span>
           </div>
 
           <div className="bg-[#03443C] p-4 rounded-xl border border-[#023E37] flex flex-col items-center text-center shadow-md">
             <DollarSign className="w-5 h-5 text-[#FED36A] mb-1" />
             <span className="text-[9px] text-[#B8CEC9] uppercase font-bold">Earned Commission</span>
-            <span className="text-[16px] text-[#FED36A] font-black mt-1 font-mono">Rs 0.00</span>
+            <span className="text-[16px] text-[#FED36A] font-black mt-1 font-mono">
+              Rs {userProfile ? (userProfile.referral_earnings || 0).toFixed(2) : '0.00'}
+            </span>
           </div>
         </div>
 
